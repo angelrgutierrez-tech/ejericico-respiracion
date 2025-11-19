@@ -1,0 +1,554 @@
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    /* Estilos generales del contenedor para centrar el contenido */
+    #app-content {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 2; /* Asegura que el contenido esté sobre el overlay */
+        padding: 20px; /* Espaciado para móviles */
+    }
+
+    /* Capa de imagen de fondo (El elemento <img> lo manejará) */
+    #bg-image {
+        filter: blur(5px); /* Aplicamos el desenfoque directamente a la imagen */
+    }
+
+    /* Capa de superposición para oscurecimiento */
+    #overlay {
+        position: fixed; /* Usa fixed para cubrir toda la ventana sin importar el scroll */
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.75); /* Oscurece el fondo */
+        z-index: 1; /* Entre la imagen (0) y el contenido (2) */
+    }
+
+    /* Estilos del círculo de respiración */
+    #breathing-circle {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background-color: rgba(60, 150, 255, 0.7);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 40px rgba(60, 150, 255, 0.9);
+        transition: transform 0.5s ease-out;
+    }
+
+    /* Clases de animación CSS para Inhala/Exhala */
+    .inhala {
+        animation: expand var(--inhala-duration) ease-in-out forwards;
+    }
+
+    .exhala {
+        animation: contract var(--exhala-duration) ease-in-out forwards;
+    }
+
+    .sosten, .reposo {
+        animation-play-state: paused;
+        transform: scale(var(--scale-factor));
+    }
+    
+    @keyframes expand {
+        0% { transform: scale(1); }
+        100% { transform: scale(1.8); }
+    }
+
+    @keyframes contract {
+        0% { transform: scale(1.8); }
+        100% { transform: scale(1); }
+    }
+</style>
+    
+<img id="bg-image" src="https://ekilibriums.wordpress.com/wp-content/uploads/2025/11/mente-sin-limites.jpeg" class="fixed top-0 left-0 w-full h-full object-cover z-0">
+    
+<div id="overlay"></div>
+
+<div id="app-content" class="w-full">
+    <div class="p-6 md:p-10 bg-gray-900/90 rounded-xl shadow-2xl w-full max-w-4xl">
+        <h1 class="text-4xl font-extrabold text-blue-400 text-center mb-6">Mente Sin Límites</h1>
+        
+        <div id="exercise-main" class="flex flex-col md:flex-row items-start justify-between gap-8">
+            
+            <div id="config-panel" class="w-full md:w-1/3 p-4 bg-gray-800 rounded-lg shadow-inner">
+                <h2 class="text-2xl font-semibold text-white mb-4 border-b border-gray-700 pb-2">⚙️ Configuración</h2>
+
+                <div class="mb-4">
+                    <label class="block text-blue-300 text-sm font-bold mb-2">Ciclo (Segundos - 0 a 20):</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="time-inhala" value="4" min="0" max="20" class="p-2 w-full bg-gray-700 text-white rounded focus:ring-blue-500 focus:border-blue-500" placeholder="Inhala (s)">
+                        <input type="number" id="time-sosten" value="0" min="0" max="20" class="p-2 w-full bg-gray-700 text-white rounded" placeholder="Sostén (s)">
+                        <input type="number" id="time-exhala" value="6" min="0" max="20" class="p-2 w-full bg-gray-700 text-white rounded" placeholder="Exhala (s)">
+                        <input type="number" id="time-reposo" value="0" min="0" max="20" class="p-2 w-full bg-gray-700 text-white rounded" placeholder="Reposo (s)">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="duration-total" class="block text-blue-300 text-sm font-bold mb-2">Duración Total (Minutos):</label>
+                    <input type="number" id="duration-total" value="5" min="0" class="p-2 w-full bg-gray-700 text-white rounded" placeholder="0 para infinito">
+                    <span class="text-xs text-gray-400">0 = Ilimitado.</span>
+                </div>
+
+                <div class="mb-4">
+                    <label for="metronome-bpm" class="block text-blue-300 text-sm font-bold mb-2">Metrónomo (BPM):</label>
+                    <input type="number" id="metronome-bpm" value="60" min="10" max="200" class="p-2 w-full bg-gray-700 text-white rounded" placeholder="BPM">
+                    <label class="flex items-center mt-2 text-white text-sm">
+                        <input type="checkbox" id="metronome-active" class="form-checkbox h-4 w-4 text-blue-500 rounded">
+                        <span class="ml-2">Activar Metrónomo</span>
+                    </label>
+                </div>
+
+                <div class="mb-4 border-t border-gray-700 pt-4">
+                    <h3 class="text-xl font-medium text-white mb-3">🎵 Audio Personalizado</h3>
+                    
+                    <div class="flex flex-col gap-2 mb-3">
+                        <input type="file" id="audio-file" accept="audio/*" class="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <button id="record-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                            Grabar Audio
+                        </button>
+                        <audio id="custom-audio-player" class="hidden w-full mt-2" controls></audio>
+                        <span id="audio-status" class="text-sm text-gray-400">Sin audio cargado.</span>
+                    </div>
+
+                    <div class="mt-4 flex flex-col gap-2">
+                        <label class="flex items-center text-white text-sm">
+                            <input type="checkbox" id="audio-loop" class="form-checkbox h-4 w-4 text-blue-500 rounded">
+                            <span class="ml-2">Reproducir en **Bucle**</span>
+                        </label>
+                        <label class="flex items-center text-white text-sm">
+                            <input type="checkbox" id="audio-on-finish" class="form-checkbox h-4 w-4 text-blue-500 rounded">
+                            <span class="ml-2">Reproducir **al Finalizar**</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full md:w-2/3 flex flex-col items-center justify-center p-4">
+                <div id="countdown-display" class="text-6xl font-extrabold text-red-500 mb-8 hidden">5</div>
+
+                <div id="breathing-circle" class="relative">
+                    <div id="breathing-text" class="text-3xl font-bold text-white uppercase text-center select-none">
+                        <span id="instruction-text">Listo</span>
+                    </div>
+                </div>
+
+                <div class="mt-8 w-full text-center">
+                    <button id="start-stop-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-extrabold py-4 px-10 rounded-full text-xl shadow-lg transition duration-300">
+                        Iniciar Ejercicio
+                    </button>
+                    <p id="time-remaining" class="mt-4 text-xl text-yellow-400 font-medium">Tiempo: Ilimitado</p>
+                    <p id="current-phase-time" class="mt-2 text-lg text-gray-300">Fase actual: --s</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // =================================================================================
+    // LÓGICA PRINCIPAL DE LA APLICACIÓN (INCLUYE PARCHE PARA IOS)
+    // =================================================================================
+
+    const DURATION_TOTAL_INPUT = document.getElementById('duration-total');
+    const TIME_INHALA_INPUT = document.getElementById('time-inhala');
+    const TIME_SOSTEN_INPUT = document.getElementById('time-sosten');
+    const TIME_EXHALA_INPUT = document.getElementById('time-exhala');
+    const TIME_REPOSO_INPUT = document.getElementById('time-reposo');
+    
+    const CIRCLE = document.getElementById('breathing-circle');
+    const INSTRUCTION_TEXT = document.getElementById('instruction-text');
+    const COUNTDOWN_DISPLAY = document.getElementById('countdown-display');
+    const START_STOP_BTN = document.getElementById('start-stop-btn');
+    const TIME_REMAINING_DISPLAY = document.getElementById('time-remaining');
+    const CURRENT_PHASE_TIME_DISPLAY = document.getElementById('current-phase-time');
+
+    let isRunning = false;
+    let isFirstInteraction = true; // Flag para el desbloqueo de audio/voz
+    let countdownTimer;
+    let exerciseTimer;
+    let totalTimeElapsed = 0; 
+    
+    let phases = []; // [Nombre, Duración(s), Clase CSS]
+    let currentPhaseIndex = 0;
+    let phaseStartTime = 0;
+    let currentPhaseInterval;
+
+    // ---------------------------------------------------------------------------------
+    // Audio & Metrónomo
+    // ---------------------------------------------------------------------------------
+    const METRONOME_ACTIVE_CHECK = document.getElementById('metronome-active');
+    const METRONOME_BPM_INPUT = document.getElementById('metronome-bpm');
+    let audioContext;
+    let metronomeInterval;
+
+    // Web Speech API para instrucciones audibles
+    const synth = window.speechSynthesis;
+    let spanishVoice = null;
+
+    // Manejar la carga asíncrona de voces
+    function loadVoices() {
+        spanishVoice = synth.getVoices().find(v => v.lang.startsWith('es'));
+    }
+    // Carga las voces al inicio y al cambiar
+    if (synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = loadVoices;
+    }
+    loadVoices();
+
+    function speak(text) {
+        if (!synth) return; 
+
+        if (synth.speaking) {
+            synth.cancel();
+        }
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'es-ES';
+        if(spanishVoice) utter.voice = spanishVoice; 
+        synth.speak(utter);
+    }
+
+    function setupAudioContext() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+    
+    // ** FUNCIÓN CLAVE PARA DESBLOQUEO DE AUDIO EN MÓVILES (V4.0) **
+    function unlockAudio() {
+        if (!isFirstInteraction) return;
+
+        // 1. TTS Unlock: Enviando una locución silenciosa.
+        if (synth.pending || synth.speaking) synth.cancel();
+        synth.speak(new SpeechSynthesisUtterance(" ")); 
+        
+        // 2. AudioContext Unlock: Para el metrónomo.
+        setupAudioContext();
+        if (audioContext && audioContext.state === 'suspended') {
+            const buffer = audioContext.createBuffer(1, 1, 22050);
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            source.start(0);
+            audioContext.resume().catch(e => console.error("Resume failed:", e));
+        }
+        isFirstInteraction = false;
+    }
+
+    function startMetronome() {
+        setupAudioContext();
+        const bpm = parseInt(METRONOME_BPM_INPUT.value) || 60;
+        const intervalTime = 60 / bpm; 
+
+        const playClick = () => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.05);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.05);
+        };
+
+        let nextBeatTime = audioContext.currentTime;
+
+        const scheduler = () => {
+            while (nextBeatTime < audioContext.currentTime + 0.1) {
+                playClick();
+                nextBeatTime += intervalTime;
+            }
+        };
+
+        metronomeInterval = setInterval(scheduler, 100);
+    }
+
+    function stopMetronome() {
+        if (metronomeInterval) {
+            clearInterval(metronomeInterval);
+            metronomeInterval = null;
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Audio Personalizado (Carga/Grabación)
+    // ---------------------------------------------------------------------------------
+    const AUDIO_FILE_INPUT = document.getElementById('audio-file');
+    const CUSTOM_AUDIO_PLAYER = document.getElementById('custom-audio-player');
+    const AUDIO_STATUS = document.getElementById('audio-status');
+    const AUDIO_LOOP_CHECK = document.getElementById('audio-loop');
+    const AUDIO_ON_FINISH_CHECK = document.getElementById('audio-on-finish');
+    const RECORD_BTN = document.getElementById('record-btn');
+
+    let mediaRecorder;
+    let audioChunks = [];
+
+    AUDIO_FILE_INPUT.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            CUSTOM_AUDIO_PLAYER.src = url;
+            CUSTOM_AUDIO_PLAYER.classList.remove('hidden');
+            AUDIO_STATUS.textContent = `Audio cargado: ${file.name}`;
+        }
+    });
+
+    // Lógica para Grabar Audio
+    RECORD_BTN.addEventListener('click', () => {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+            alert('Función de grabación no disponible en este navegador.');
+            return;
+        }
+
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            RECORD_BTN.textContent = 'Grabar Audio';
+            RECORD_BTN.classList.remove('bg-yellow-600');
+            RECORD_BTN.classList.add('bg-red-600');
+        } else {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
+                    mediaRecorder.addEventListener("stop", () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        CUSTOM_AUDIO_PLAYER.src = audioUrl;
+                        CUSTOM_AUDIO_PLAYER.classList.remove('hidden');
+                        AUDIO_STATUS.textContent = 'Audio grabado listo.';
+                        stream.getTracks().forEach(track => track.stop());
+                    });
+
+                    mediaRecorder.start();
+                    RECORD_BTN.textContent = 'Detener Grabación...';
+                    RECORD_BTN.classList.remove('bg-red-600');
+                    RECORD_BTN.classList.add('bg-yellow-600');
+                })
+                .catch(err => {
+                    alert('Error al acceder al micrófono: ' + err.message);
+                });
+        }
+    });
+
+    function startCustomAudio() {
+        if (CUSTOM_AUDIO_PLAYER.src && isRunning) {
+            CUSTOM_AUDIO_PLAYER.loop = AUDIO_LOOP_CHECK.checked;
+            CUSTOM_AUDIO_PLAYER.volume = 0.6; 
+            CUSTOM_AUDIO_PLAYER.play().catch(e => console.error("Error al reproducir audio:", e));
+        }
+    }
+
+    function stopCustomAudio() {
+        CUSTOM_AUDIO_PLAYER.pause();
+        CUSTOM_AUDIO_PLAYER.currentTime = 0;
+        CUSTOM_AUDIO_PLAYER.loop = false;
+    }
+
+    function playCustomAudioOnFinish() {
+        if (AUDIO_ON_FINISH_CHECK.checked && CUSTOM_AUDIO_PLAYER.src) {
+            CUSTOM_AUDIO_PLAYER.currentTime = 0; 
+            CUSTOM_AUDIO_PLAYER.loop = false;
+            CUSTOM_AUDIO_PLAYER.volume = 1.0; 
+            CUSTOM_AUDIO_PLAYER.play().catch(e => console.error("Error al reproducir audio de finalización:", e));
+        }
+    }
+    
+    // ---------------------------------------------------------------------------------
+    // Lógica del Ejercicio
+    // ---------------------------------------------------------------------------------
+
+    function updatePhases() {
+        const inhalaTime = Math.min(parseInt(TIME_INHALA_INPUT.value) || 0, 20);
+        const sostenTime = Math.min(parseInt(TIME_SOSTEN_INPUT.value) || 0, 20);
+        const exhalaTime = Math.min(parseInt(TIME_EXHALA_INPUT.value) || 0, 20);
+        const reposoTime = Math.min(parseInt(TIME_REPOSO_INPUT.value) || 0, 20);
+
+        phases = [];
+        if (inhalaTime > 0) phases.push(['Inhala', inhalaTime, 'inhala']);
+        if (sostenTime > 0) phases.push(['Sostén', sostenTime, 'sosten']);
+        if (exhalaTime > 0) phases.push(['Exhala', exhalaTime, 'exhala']);
+        if (reposoTime > 0) phases.push(['Reposo', reposoTime, 'reposo']);
+
+        if (phases.length === 0) {
+             phases.push(['Inhala', 4, 'inhala']);
+             phases.push(['Exhala', 6, 'exhala']);
+        }
+    }
+
+
+    function startCountdown(callback) {
+        COUNTDOWN_DISPLAY.classList.remove('hidden');
+        let count = 5;
+        COUNTDOWN_DISPLAY.textContent = count;
+        
+        setTimeout(() => {
+            speak(count.toString()); 
+
+            countdownTimer = setInterval(() => {
+                count--;
+                COUNTDOWN_DISPLAY.textContent = count;
+                
+                if (count > 0) {
+                    speak(count.toString());
+                } else if (count === 0) {
+                    speak("Comenzar");
+                }
+            
+                if (count <= 0) {
+                    clearInterval(countdownTimer);
+                    COUNTDOWN_DISPLAY.classList.add('hidden');
+                    callback();
+                }
+            }, 1000);
+        }, 200); 
+    }
+
+    function startExercise() {
+        if (isRunning) return;
+
+        isRunning = true;
+        START_STOP_BTN.textContent = 'Detener Ejercicio';
+        START_STOP_BTN.classList.remove('bg-blue-500');
+        START_STOP_BTN.classList.add('bg-red-500');
+
+        updatePhases();
+        currentPhaseIndex = 0;
+        totalTimeElapsed = 0;
+        const totalDurationMinutes = parseInt(DURATION_TOTAL_INPUT.value) || 0;
+        const totalDurationSeconds = totalDurationMinutes * 60;
+
+        startCountdown(() => {
+            if(METRONOME_ACTIVE_CHECK.checked) startMetronome();
+            startCustomAudio();
+            
+            executePhase();
+
+            if (totalDurationSeconds > 0) {
+                exerciseTimer = setInterval(() => {
+                    totalTimeElapsed++;
+                    const remaining = totalDurationSeconds - totalTimeElapsed;
+                    const minutes = Math.floor(remaining / 60);
+                    const seconds = remaining % 60;
+                    TIME_REMAINING_DISPLAY.textContent = `Tiempo Restante: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                    if (remaining <= 0) {
+                        stopExercise();
+                        playCustomAudioOnFinish();
+                        INSTRUCTION_TEXT.textContent = '¡Hecho!';
+                        TIME_REMAINING_DISPLAY.textContent = `Tiempo: Finalizado`;
+                    }
+                }, 1000);
+            } else {
+                TIME_REMAINING_DISPLAY.textContent = `Tiempo: Ilimitado`;
+            }
+        });
+    }
+
+    function executePhase() {
+        if (!isRunning) return;
+
+        const [name, duration, cssClass] = phases[currentPhaseIndex];
+        
+        // 1. Actualizar Texto y Voz
+        INSTRUCTION_TEXT.textContent = name.toUpperCase();
+        if (duration > 0) { 
+            speak(name);
+        }
+
+        // 2. Aplicar Animación
+        CIRCLE.className = ''; 
+        CIRCLE.classList.add('transition-none', 'ease-in-out', 'duration-500'); 
+
+        CIRCLE.style.setProperty('--inhala-duration', `${duration}s`);
+        CIRCLE.style.setProperty('--exhala-duration', `${duration}s`);
+        
+        if (cssClass === 'inhala' || cssClass === 'exhala') {
+            CIRCLE.classList.add(cssClass);
+        } else {
+            const scaleFactor = (name === 'Sostén') ? '1.8' : '1';
+            CIRCLE.style.setProperty('--scale-factor', scaleFactor);
+            CIRCLE.classList.add(cssClass);
+        }
+
+        // 3. Iniciar Contador de Fase
+        phaseStartTime = 0;
+        clearInterval(currentPhaseInterval);
+        
+        if (duration === 0) {
+            CURRENT_PHASE_TIME_DISPLAY.textContent = `${name}: 0s`;
+            currentPhaseIndex = (currentPhaseIndex + 1) % phases.length;
+            setTimeout(executePhase, 50); 
+            return;
+        }
+
+        currentPhaseInterval = setInterval(() => {
+            phaseStartTime++;
+            const remaining = duration - phaseStartTime;
+            CURRENT_PHASE_TIME_DISPLAY.textContent = `${name}: ${remaining}s`;
+
+            if (phaseStartTime >= duration) {
+                clearInterval(currentPhaseInterval);
+                
+                currentPhaseIndex = (currentPhaseIndex + 1) % phases.length;
+                executePhase();
+            }
+        }, 1000);
+    }
+
+
+    function stopExercise() {
+        isRunning = false;
+        clearInterval(countdownTimer);
+        clearInterval(exerciseTimer);
+        clearInterval(currentPhaseInterval);
+        stopMetronome();
+        stopCustomAudio();
+
+        START_STOP_BTN.textContent = 'Iniciar Ejercicio';
+        START_STOP_BTN.classList.remove('bg-red-500');
+        START_STOP_BTN.classList.add('bg-blue-500');
+        
+        COUNTDOWN_DISPLAY.classList.add('hidden');
+        CIRCLE.className = '';
+        INSTRUCTION_TEXT.textContent = 'Listo';
+        CURRENT_PHASE_TIME_DISPLAY.textContent = 'Fase actual: --s';
+
+        const totalDurationMinutes = parseInt(DURATION_TOTAL_INPUT.value) || 0;
+        if (totalDurationMinutes > 0) {
+            TIME_REMAINING_DISPLAY.textContent = `Tiempo: ${totalDurationMinutes}:00`;
+        } else {
+            TIME_REMAINING_DISPLAY.textContent = `Tiempo: Ilimitado`;
+        }
+    }
+
+
+    // =================================================================================
+    // EVENTOS
+    // =================================================================================
+    START_STOP_BTN.addEventListener('click', () => {
+        if (isRunning) {
+            stopExercise();
+        } else {
+            // *** LLAMADA AL DESBLOQUEO FORZADO V4.0 ***
+            unlockAudio();
+            startExercise();
+        }
+    });
+</script>
