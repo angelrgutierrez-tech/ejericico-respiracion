@@ -134,6 +134,13 @@
                         </div>
 
                         <div class="mt-4 border-t border-gray-700 pt-4">
+                             <label class="flex items-center text-white text-sm mb-4">
+                                <input type="checkbox" id="audio-loop-active" class="form-checkbox h-4 w-4 text-blue-500 rounded">
+                                <span class="ml-2">Reproducir Audio de Fondo (Bucle)</span>
+                            </label>
+                        </div>
+
+                        <div class="mt-4 border-t border-gray-700 pt-4">
                             <h4 class="text-lg font-medium text-white mb-2">Audio al Finalizar:</h4>
                             <label class="flex items-center text-white text-sm mb-2">
                                 <input type="checkbox" id="audio-on-finish" class="form-checkbox h-4 w-4 text-blue-500 rounded">
@@ -170,6 +177,13 @@
         </div>
     </div>
 
+    ```
+
+### B. Sección JavaScript (Lógica de Audio de Fondo Corregida)
+
+Se ha corregido la función `startCustomAudio` para que compruebe si la nueva casilla **`audio-loop-active`** está tildada antes de iniciar el bucle de fondo.
+
+```javascript
     <script>
         // =================================================================================
         // LÓGICA PRINCIPAL DE LA APLICACIÓN
@@ -203,6 +217,9 @@
         const FINISH_AUDIO_SETTINGS = document.getElementById('finish-audio-settings');
         const FINISH_AUDIO_DURATION_INPUT = document.getElementById('finish-audio-duration');
         const RECORD_BTN = document.getElementById('record-btn');
+        // NUEVO CHECKBOX
+        const AUDIO_LOOP_ACTIVE_CHECK = document.getElementById('audio-loop-active');
+
 
         // === Variables de Estado ===
         let isRunning = false;
@@ -274,7 +291,6 @@
             }, 500); 
         }
 
-        // CORRECCIÓN CLAVE: El metrónomo usa un AudioContext para sonar
         function startMetronome() {
             setupAudioContext();
             const bpm = parseInt(METRONOME_BPM_INPUT.value) || 60;
@@ -309,7 +325,6 @@
                 }
             };
             
-            // Usamos setInterval para llamar al scheduler regularmente
             metronomeInterval = setInterval(scheduler, 25); 
         }
 
@@ -320,8 +335,10 @@
             }
         }
 
+        // FUNCIÓN CORREGIDA: Solo reproduce si el checkbox está tildado
         function startCustomAudio() {
-            if (CUSTOM_AUDIO_PLAYER.src && isRunning) {
+            // Verifica si hay audio cargado Y si el usuario tildó el bucle de fondo
+            if (CUSTOM_AUDIO_PLAYER.src && isRunning && AUDIO_LOOP_ACTIVE_CHECK.checked) {
                 CUSTOM_AUDIO_PLAYER.loop = true; 
                 CUSTOM_AUDIO_PLAYER.volume = AUDIO_VOLUME_INPUT.value / 100; 
                 CUSTOM_AUDIO_PLAYER.play().catch(e => console.error("Error al reproducir audio:", e));
@@ -330,13 +347,19 @@
 
         function stopCustomAudio() {
             CUSTOM_AUDIO_PLAYER.pause();
-            CUSTOM_AUDIO_PLAYER.currentTime = 0;
+            // Solo reiniciamos el tiempo de reproducción si NO estamos en el bucle post-ejercicio
+            if (!AUDIO_ON_FINISH_CHECK.checked || !finishAudioTimer) {
+                 CUSTOM_AUDIO_PLAYER.currentTime = 0;
+            }
             CUSTOM_AUDIO_PLAYER.loop = false;
             clearInterval(finishAudioTimer);
         }
 
         function playCustomAudioOnFinish() {
             if (AUDIO_ON_FINISH_CHECK.checked && CUSTOM_AUDIO_PLAYER.src) {
+                // Si el audio de fondo estaba sonando, lo detenemos y reiniciamos para el audio de finalización
+                stopCustomAudio(); // Detiene el bucle de fondo y el temporizador si existían
+                
                 CUSTOM_AUDIO_PLAYER.currentTime = 0; 
                 CUSTOM_AUDIO_PLAYER.loop = true; // REPETIR EN BUCLE
                 CUSTOM_AUDIO_PLAYER.volume = 1.0; 
@@ -345,9 +368,9 @@
                 const durationMinutes = parseInt(FINISH_AUDIO_DURATION_INPUT.value) || 0;
                 if (durationMinutes > 0) {
                     const durationSeconds = durationMinutes * 60;
-                    // Detener el audio después de la duración configurada
+                    
                     finishAudioTimer = setTimeout(() => {
-                        stopCustomAudio();
+                        stopCustomAudio(); // Detiene el audio y limpia el temporizador
                     }, durationSeconds * 1000);
                 }
             }
@@ -418,7 +441,7 @@
 
             startCountdown(() => {
                 if(METRONOME_ACTIVE_CHECK.checked) startMetronome();
-                startCustomAudio();
+                startCustomAudio(); // Usa la lógica corregida para el bucle de fondo
                 
                 executePhase();
 
@@ -590,6 +613,7 @@
                             const audioUrl = URL.createObjectURL(audioBlob);
                             CUSTOM_AUDIO_PLAYER.src = audioUrl;
                             CUSTOM_AUDIO_PLAYER.classList.remove('hidden');
+                            CUSTOM_AUDIO_PLAYER.volume = AUDIO_VOLUME_INPUT.value / 100; 
                             AUDIO_STATUS.textContent = 'Audio grabado listo.';
                             stream.getTracks().forEach(track => track.stop());
                         });
