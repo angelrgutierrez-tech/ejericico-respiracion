@@ -129,6 +129,9 @@
                             <button id="record-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-200">
                                 Grabar Audio
                             </button>
+                            <button id="download-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-200" style="display: none;">
+                                Descargar Grabación
+                            </button>
                             <audio id="custom-audio-player" class="hidden w-full mt-2" controls></audio>
                             <span id="audio-status" class="text-sm text-gray-400">Sin audio cargado.</span>
                         </div>
@@ -177,13 +180,6 @@
         </div>
     </div>
 
-    ```
-
-### B. Sección JavaScript (Lógica de Audio de Fondo Corregida)
-
-Se ha corregido la función `startCustomAudio` para que compruebe si la nueva casilla **`audio-loop-active`** está tildada antes de iniciar el bucle de fondo.
-
-```javascript
     <script>
         // =================================================================================
         // LÓGICA PRINCIPAL DE LA APLICACIÓN
@@ -217,7 +213,7 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
         const FINISH_AUDIO_SETTINGS = document.getElementById('finish-audio-settings');
         const FINISH_AUDIO_DURATION_INPUT = document.getElementById('finish-audio-duration');
         const RECORD_BTN = document.getElementById('record-btn');
-        // NUEVO CHECKBOX
+        const DOWNLOAD_BTN = document.getElementById('download-btn'); // NUEVO
         const AUDIO_LOOP_ACTIVE_CHECK = document.getElementById('audio-loop-active');
 
 
@@ -236,6 +232,7 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
         let finishAudioTimer;
         let mediaRecorder;
         let audioChunks = [];
+        let recordedAudioBlob = null; // NUEVO: Para guardar la grabación para descargar
 
         // === Voz (TTS) ===
         const synth = window.speechSynthesis;
@@ -317,8 +314,11 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
 
             const scheduler = () => {
                 const lookahead = 0.1; // 100ms lookahead
-                const nextBeatTime = startTime + currentBeat * intervalTime;
+                
+                // FIX: Usar audioContext.currentTime para recalcular el inicio
+                const nextBeatTime = startTime + currentBeat * intervalTime; 
 
+                // Si la hora del próximo beat es antes que la hora actual del contexto + lookahead, dispara
                 while (nextBeatTime < audioContext.currentTime + lookahead) {
                     playClick(nextBeatTime);
                     currentBeat++;
@@ -335,7 +335,6 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
             }
         }
 
-        // FUNCIÓN CORREGIDA: Solo reproduce si el checkbox está tildado
         function startCustomAudio() {
             // Verifica si hay audio cargado Y si el usuario tildó el bucle de fondo
             if (CUSTOM_AUDIO_PLAYER.src && isRunning && AUDIO_LOOP_ACTIVE_CHECK.checked) {
@@ -441,7 +440,7 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
 
             startCountdown(() => {
                 if(METRONOME_ACTIVE_CHECK.checked) startMetronome();
-                startCustomAudio(); // Usa la lógica corregida para el bucle de fondo
+                startCustomAudio(); 
                 
                 executePhase();
 
@@ -472,8 +471,10 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
             const [name, duration, cssClass] = phases[currentPhaseIndex];
             
             INSTRUCTION_TEXT.textContent = name.toUpperCase();
+            
+            // FIX: Retrasar la llamada de TTS para evitar conflictos de timing con el metrónomo
             if (duration > 0) { 
-                speak(name);
+                 setTimeout(() => speak(name), 100);
             }
 
             CIRCLE.className = ''; 
@@ -585,10 +586,13 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
                 CUSTOM_AUDIO_PLAYER.classList.remove('hidden');
                 CUSTOM_AUDIO_PLAYER.volume = AUDIO_VOLUME_INPUT.value / 100; 
                 AUDIO_STATUS.textContent = `Audio cargado: ${file.name}`;
+                // Ocultar botón de descarga si se carga un archivo externo
+                DOWNLOAD_BTN.style.display = 'none'; 
+                recordedAudioBlob = null;
             }
         });
 
-        // Lógica de Grabación de Audio (sin cambios)
+        // Lógica de Grabación de Audio
         RECORD_BTN.addEventListener('click', () => {
             if (!navigator.mediaDevices || !window.MediaRecorder) {
                 alert('Función de grabación no disponible en este navegador.');
@@ -608,13 +612,20 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
                         mediaRecorder.addEventListener("dataavailable", event => {
                             audioChunks.push(event.data);
                         });
+                        
                         mediaRecorder.addEventListener("stop", () => {
                             const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                            
+                            recordedAudioBlob = audioBlob; // Guardar el Blob para descarga
+                            
                             const audioUrl = URL.createObjectURL(audioBlob);
                             CUSTOM_AUDIO_PLAYER.src = audioUrl;
                             CUSTOM_AUDIO_PLAYER.classList.remove('hidden');
                             CUSTOM_AUDIO_PLAYER.volume = AUDIO_VOLUME_INPUT.value / 100; 
-                            AUDIO_STATUS.textContent = 'Audio grabado listo.';
+                            AUDIO_STATUS.textContent = 'Audio grabado listo. Puedes escucharlo o descargarlo.';
+                            
+                            DOWNLOAD_BTN.style.display = 'block'; // Mostrar el botón de descarga
+                            
                             stream.getTracks().forEach(track => track.stop());
                         });
 
@@ -622,13 +633,35 @@ Se ha corregido la función `startCustomAudio` para que compruebe si la nueva ca
                         RECORD_BTN.textContent = 'Detener Grabación...';
                         RECORD_BTN.classList.remove('bg-red-600');
                         RECORD_BTN.classList.add('bg-yellow-600');
+                        DOWNLOAD_BTN.style.display = 'none'; // Ocultar al empezar a grabar
                     })
                     .catch(err => {
                         alert('Error al acceder al micrófono: ' + err.message);
                     });
             }
         });
+        
+        // NUEVO: Lógica del botón de descarga
+        DOWNLOAD_BTN.addEventListener('click', () => {
+            if (recordedAudioBlob) {
+                const a = document.createElement('a');
+                document.body.appendChild(a);
+                a.style.display = 'none';
 
+                const url = window.URL.createObjectURL(recordedAudioBlob);
+                a.href = url;
+                // Nombre de archivo con fecha
+                a.download = 'MenteSinLimites_Grabacion_' + new Date().toISOString().slice(0, 10) + '.mp3'; 
+                
+                a.click();
+
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert('No hay una grabación de audio disponible para descargar.');
+            }
+        });
+        
     </script>
 </body>
 </html>
