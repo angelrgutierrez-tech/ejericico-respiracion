@@ -296,15 +296,16 @@
             }, 500); 
         }
 
-        // === CORRECCIÓN DEL METRÓNOMO ===
+        // === CORRECCIÓN DEL METRÓNOMO (OPTIMIZACIÓN DE RENDIMIENTO) ===
         function startMetronome() {
+            stopMetronome(); // Asegurar que cualquier intervalo anterior esté limpio
             setupAudioContext();
             if (!audioContext) return;
 
             const bpm = parseInt(METRONOME_BPM_INPUT.value) || 60;
             const intervalTime = 60 / bpm; // Tiempo entre beats en segundos
-            const lookahead = 0.1; // Programar 100ms en el futuro
-            let nextBeatTime = audioContext.currentTime + 0.1; // Primer beat un poco después del inicio
+            const lookahead = 0.2; // Programar 200ms en el futuro (Ventana más amplia)
+            let nextBeatTime = audioContext.currentTime; 
             const userVolume = AUDIO_VOLUME_INPUT.value / 100; // Obtener el volumen del usuario (0 a 1)
 
             const playClick = (time) => {
@@ -314,7 +315,7 @@
                 oscillator.type = 'sine';
                 oscillator.frequency.setValueAtTime(440, time);
                 // Usar el volumen configurado
-                gainNode.gain.setValueAtTime(userVolume, time); 
+                gainNode.gain.setValueAtTime(userVolume * 0.5, time); // Vol. Metrónomo más bajo que el master
                 gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
 
                 oscillator.connect(gainNode);
@@ -331,7 +332,8 @@
                 }
             };
             
-            metronomeInterval = setInterval(scheduler, 25); 
+            // Intervalo de sondeo de 50ms para reducir la carga de la CPU.
+            metronomeInterval = setInterval(scheduler, 50); 
         }
 
         function stopMetronome() {
